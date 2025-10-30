@@ -1,10 +1,13 @@
 package main
 
 import (
-	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/hyuko21/file-storage-s3-golang/internal/auth"
@@ -59,8 +62,28 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	tnBase64 := base64.StdEncoding.EncodeToString(fBytes)
-	thumbnailURL := fmt.Sprintf("data:%s;base64,%s", fHeader.Header.Get("Content-Type"), tnBase64)
+	fContentType := fHeader.Header.Get("Content-Type")
+	contentTypeParts := strings.Split(fContentType, "/")
+	if len(contentTypeParts) < 2 || contentTypeParts[0] != "image" {
+		respondWithError(w, http.StatusBadRequest, "Unable to save this file as thumbnail", errors.New("unknown file media type"))
+		return
+	}
+	fileExt := contentTypeParts[1]
+	tnFilename := fmt.Sprintf("%s.%s", videoID, fileExt)
+	tnFilepath := filepath.Join(cfg.assetsRoot, tnFilename)
+	tnFile, err := os.Create(tnFilepath)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Unable to save this file as thumbnail", err)
+		return
+	}
+	_, err = tnFile.Write(fBytes)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to save this file", err)
+		return
+	}
+
+	assetsRootPath := strings.TrimPrefix(cfg.assetsRoot, "./")
+	thumbnailURL := fmt.Sprintf("http://localhost:8091/%s/%s", assetsRootPath, tnFilename)
 	video.ThumbnailURL = &thumbnailURL
 	cfg.db.UpdateVideo(video)
 
