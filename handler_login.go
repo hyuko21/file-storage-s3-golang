@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
-	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/database"
+	"github.com/hyuko21/file-storage-s3-golang/internal/auth"
+	"github.com/hyuko21/file-storage-s3-golang/internal/database"
 )
 
 func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
