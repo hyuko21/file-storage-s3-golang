@@ -1,9 +1,9 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -62,13 +62,21 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	fContentType := fHeader.Header.Get("Content-Type")
-	contentTypeParts := strings.Split(fContentType, "/")
-	if len(contentTypeParts) < 2 || contentTypeParts[0] != "image" {
-		respondWithError(w, http.StatusBadRequest, "Unable to save this file as thumbnail", errors.New("unknown file media type"))
+	fMediaType, _, err := mime.ParseMediaType(fHeader.Header.Get("Content-Type"))
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Unable to parse media type of file", err)
 		return
 	}
-	fileExt := contentTypeParts[1]
+	mediaTypeParts := strings.Split(fMediaType, "/")
+	if mediaTypeParts[0] != "image" {
+		respondWithError(w, http.StatusBadRequest, "Unsupported media type for thumbnail", nil)
+		return
+	}
+	if mediaTypeParts[1] != "jpeg" && mediaTypeParts[1] != "png" {
+		respondWithError(w, http.StatusBadRequest, "Unsupported media type for thumbnail", nil)
+		return
+	}
+	fileExt := mediaTypeParts[1]
 	tnFilename := fmt.Sprintf("%s.%s", videoID, fileExt)
 	tnFilepath := filepath.Join(cfg.assetsRoot, tnFilename)
 	tnFile, err := os.Create(tnFilepath)
