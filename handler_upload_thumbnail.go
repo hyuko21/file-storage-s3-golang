@@ -33,24 +33,6 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	fmt.Println("uploading thumbnail for video", videoID, "by user", userID)
-
-	const maxMemory = 10 << 20 // 10mb (as in 10 * 1024 * 1024, as 1024 is 1 << 10)
-	r.ParseMultipartForm(maxMemory)
-
-	file, fHeader, err := r.FormFile("thumbnail")
-	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Unable to parse form file", err)
-		return
-	}
-	defer file.Close()
-
-	fBytes, err := io.ReadAll(file)
-	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Unable to read file contents", err)
-		return
-	}
-
 	video, err := cfg.db.GetVideo(videoID)
 	if err != nil {
 		respondWithError(w, http.StatusNotFound, "Couldn't find video", err)
@@ -62,18 +44,35 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	fMediaType, _, err := mime.ParseMediaType(fHeader.Header.Get("Content-Type"))
+	fmt.Println("uploading thumbnail for video", videoID, "by user", userID)
+	tnURL, err := cfg.uploadThumbnail(r, videoID)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Unable to parse media type of file", err)
+		respondWithError(w, http.StatusBadRequest, "Unable to save uploaded file as thumbnail", err)
 		return
 	}
-	mediaTypeParts := strings.Split(fMediaType, "/")
-	if mediaTypeParts[0] != "image" {
-		respondWithError(w, http.StatusBadRequest, "Unsupported media type for thumbnail", nil)
+
+	video.ThumbnailURL = &tnURL
+	cfg.db.UpdateVideo(video)
+
+	respondWithJSON(w, http.StatusOK, video)
+}
+
+func (cfg *apiConfig) uploadThumbnail(r *http.Request, videoID uuid.UUID) (tnURL string, err error) {
+	const maxMemory = 10 << 20 // 10mb (as in 10 * 1024 * 1024, as 1024 is 1 << 10)
+	r.ParseMultipartForm(maxMemory)
+
+	file, fHeader, err := r.FormFile("thumbnail")
+	if err != nil {
 		return
 	}
-	if mediaTypeParts[1] != "jpeg" && mediaTypeParts[1] != "png" {
-		respondWithError(w, http.StatusBadRequest, "Unsupported media type for thumbnail", nil)
+	defer file.Close()
+
+	fBytes, err := io.ReadAll(file)
+	if err != nil {
+		return
+	}
+	mediaTypeParts, err := parseThumbnailMediaType(fHeader.Header.Get("Content-Type"))
+	if err != nil {
 		return
 	}
 	fileExt := mediaTypeParts[1]
@@ -81,19 +80,26 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 	tnFilepath := filepath.Join(cfg.assetsRoot, tnFilename)
 	tnFile, err := os.Create(tnFilepath)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Unable to save this file as thumbnail", err)
 		return
 	}
 	_, err = tnFile.Write(fBytes)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Unable to save this file", err)
 		return
 	}
 
 	assetsRootPath := strings.TrimPrefix(cfg.assetsRoot, "./")
-	thumbnailURL := fmt.Sprintf("http://localhost:8091/%s/%s", assetsRootPath, tnFilename)
-	video.ThumbnailURL = &thumbnailURL
-	cfg.db.UpdateVideo(video)
+	tnURL = fmt.Sprintf("http://localhost:8091/%s/%s", assetsRootPath, tnFilename)
+	return
+}
 
-	respondWithJSON(w, http.StatusOK, video)
+func parseThumbnailMediaType(contentType string) (mediaTypeParts []string, err error) {
+	fMediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return
+	}
+	mediaTypeParts = strings.Split(fMediaType, "/")
+	if mediaTypeParts[0] != "image" || mediaTypeParts[1] != "jpeg" && mediaTypeParts[1] != "png" {
+		return nil, fmt.Errorf("unsupported media type for thumbnail: %s", mediaTypeParts[0])
+	}
+	return
 }
