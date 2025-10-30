@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// Deprecated: handlerThumbnailGet relies on a in memory storage of thumbnails data
 func (cfg *apiConfig) handlerThumbnailGet(w http.ResponseWriter, r *http.Request) {
 	videoIDString := r.PathValue("videoID")
 	videoID, err := uuid.Parse(videoIDString)

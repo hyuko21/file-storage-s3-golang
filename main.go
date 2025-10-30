@@ -29,6 +29,8 @@ type thumbnail struct {
 	mediaType string
 }
 
+// Deprecated: videoThumbnails was used to store the bytes of the thumbnails,
+// but now the encoded binary is stored in sqlite
 var videoThumbnails = map[uuid.UUID]thumbnail{}
 
 func main() {
@@ -100,7 +102,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Couldn't create assets directory: %v", err)
 	}
-
 	mux := http.NewServeMux()
 	appHandler := http.StripPrefix("/app", http.FileServer(http.Dir(filepathRoot)))
 	mux.Handle("/app/", appHandler)
