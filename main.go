@@ -5,8 +5,10 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
 	"github.com/hyuko21/file-storage-s3-golang/internal/database"
+	"github.com/hyuko21/file-storage-s3-golang/internal/filestorage"
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -21,6 +23,7 @@ type apiConfig struct {
 	s3Bucket         string
 	s3Region         string
 	s3CfDistribution string
+	s3Client         *s3.Client
 	port             string
 }
 
@@ -86,6 +89,11 @@ func main() {
 		log.Fatal("PORT environment variable is not set")
 	}
 
+	s3Client, err := filestorage.MakeS3Client(s3Region)
+	if err != nil {
+		log.Fatalf("Couldn't init S3 Client: %s", err)
+	}
+
 	cfg := apiConfig{
 		db:               db,
 		jwtSecret:        jwtSecret,
@@ -95,6 +103,7 @@ func main() {
 		s3Bucket:         s3Bucket,
 		s3Region:         s3Region,
 		s3CfDistribution: s3CfDistribution,
+		s3Client:         s3Client,
 		port:             port,
 	}
 
