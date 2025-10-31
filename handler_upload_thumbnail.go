@@ -41,12 +41,12 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 	}
 
 	if video.UserID != userID {
-		respondWithError(w, http.StatusUnauthorized, "Can't upload a thumbnail for this video", err)
+		respondWithError(w, http.StatusForbidden, "Can't upload a thumbnail for this video", err)
 		return
 	}
 
 	fmt.Println("uploading thumbnail for video", videoID, "by user", userID)
-	tnURL, err := cfg.uploadThumbnail(r, videoID)
+	tnURL, err := cfg.uploadThumbnail(r)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, "Unable to save uploaded file as thumbnail", err)
 		return
@@ -58,7 +58,7 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 	respondWithJSON(w, http.StatusOK, video)
 }
 
-func (cfg *apiConfig) uploadThumbnail(r *http.Request, videoID uuid.UUID) (tnURL string, err error) {
+func (cfg *apiConfig) uploadThumbnail(r *http.Request) (tnURL string, err error) {
 	const maxMemory = 10 << 20 // 10mb (as in 10 * 1024 * 1024, as 1024 is 1 << 10)
 	r.ParseMultipartForm(maxMemory)
 
@@ -68,10 +68,6 @@ func (cfg *apiConfig) uploadThumbnail(r *http.Request, videoID uuid.UUID) (tnURL
 	}
 	defer file.Close()
 
-	fBytes, err := io.ReadAll(file)
-	if err != nil {
-		return
-	}
 	mediaTypeParts, err := parseThumbnailMediaType(fHeader.Header.Get("Content-Type"))
 	if err != nil {
 		return
@@ -84,6 +80,10 @@ func (cfg *apiConfig) uploadThumbnail(r *http.Request, videoID uuid.UUID) (tnURL
 	tnFilename := fmt.Sprintf("%s.%s", tnFileKey, fileExt)
 	tnFilepath := filepath.Join(cfg.assetsRoot, tnFilename)
 	tnFile, err := os.Create(tnFilepath)
+	if err != nil {
+		return
+	}
+	fBytes, err := io.ReadAll(file)
 	if err != nil {
 		return
 	}
