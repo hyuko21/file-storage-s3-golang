@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hyuko21/file-storage-s3-golang/internal/auth"
+	"github.com/hyuko21/file-storage-s3-golang/internal/utils"
 )
 
 func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Request) {
@@ -76,7 +77,11 @@ func (cfg *apiConfig) uploadThumbnail(r *http.Request, videoID uuid.UUID) (tnURL
 		return
 	}
 	fileExt := mediaTypeParts[1]
-	tnFilename := fmt.Sprintf("%s.%s", videoID, fileExt)
+	tnFileKey, err := utils.MakeRandomString()
+	if err != nil {
+		return
+	}
+	tnFilename := fmt.Sprintf("%s.%s", tnFileKey, fileExt)
 	tnFilepath := filepath.Join(cfg.assetsRoot, tnFilename)
 	tnFile, err := os.Create(tnFilepath)
 	if err != nil {
