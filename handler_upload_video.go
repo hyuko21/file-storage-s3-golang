@@ -93,9 +93,24 @@ func (cfg *apiConfig) uploadVideo(r *http.Request) (videoURL string, err error) 
 	if err != nil {
 		return
 	}
-	tempVideoFile.Seek(0, io.SeekStart)
+	aspectRatio, err := utils.GetVideoAspectRatio(tempVideoFile.Name())
+	if err != nil {
+		return
+	}
+	_, err = tempVideoFile.Seek(0, io.SeekStart)
+	if err != nil {
+		return
+	}
 
 	fileKey := fmt.Sprintf("%s.%s", randomFileKey, fileExt)
+	switch aspectRatio {
+	case "16:9":
+		fileKey = "landscape/" + fileKey
+	case "9:16":
+		fileKey = "portrait/" + fileKey
+	case "other":
+		fileKey = "other/" + fileKey
+	}
 	cfg.s3Client.PutObject(r.Context(), &s3.PutObjectInput{
 		Bucket:      &cfg.s3Bucket,
 		Key:         &fileKey,
