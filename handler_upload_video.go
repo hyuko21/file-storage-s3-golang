@@ -102,6 +102,17 @@ func (cfg *apiConfig) uploadVideo(r *http.Request) (videoURL string, err error) 
 		return
 	}
 
+	processedFilePath, err := utils.ProcessVideoForFastStart(tempVideoFile.Name())
+	if err != nil {
+		return
+	}
+	processedTempVideoFile, err := os.OpenFile(processedFilePath, os.O_RDONLY, 0444)
+	if err != nil {
+		return
+	}
+	defer os.Remove(processedTempVideoFile.Name())
+	defer processedTempVideoFile.Close()
+
 	fileKey := fmt.Sprintf("%s.%s", randomFileKey, fileExt)
 	switch aspectRatio {
 	case "16:9":
@@ -114,7 +125,7 @@ func (cfg *apiConfig) uploadVideo(r *http.Request) (videoURL string, err error) 
 	cfg.s3Client.PutObject(r.Context(), &s3.PutObjectInput{
 		Bucket:      &cfg.s3Bucket,
 		Key:         &fileKey,
-		Body:        tempVideoFile,
+		Body:        processedTempVideoFile,
 		ContentType: &fContentType,
 	})
 
