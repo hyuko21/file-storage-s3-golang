@@ -7,10 +7,13 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
 	"github.com/hyuko21/file-storage-s3-golang/internal/auth"
+	"github.com/hyuko21/file-storage-s3-golang/internal/database"
+	"github.com/hyuko21/file-storage-s3-golang/internal/filestorage"
 	"github.com/hyuko21/file-storage-s3-golang/internal/utils"
 )
 
@@ -55,7 +58,13 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 	video.VideoURL = &videoURL
 	cfg.db.UpdateVideo(video)
 
-	respondWithJSON(w, http.StatusOK, video)
+	signedVideo, err := cfg.dbVideoToSignedVideo(video)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to serve uploaded video", err)
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, signedVideo)
 }
 
 func (cfg *apiConfig) uploadVideo(r *http.Request) (videoURL string, err error) {
@@ -129,7 +138,7 @@ func (cfg *apiConfig) uploadVideo(r *http.Request) (videoURL string, err error) 
 		ContentType: &fContentType,
 	})
 
-	videoURL = fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", cfg.s3Bucket, cfg.s3Region, fileKey)
+	videoURL = fmt.Sprintf("%s,%s", cfg.s3Bucket, fileKey)
 	return
 }
 
@@ -143,4 +152,22 @@ func parseVideoMediaType(contentType string) (mediaTypeParts []string, err error
 		return nil, fmt.Errorf("unsupported media type for thumbnail: %s", mediaTypeParts[0])
 	}
 	return
+}
+
+func (cfg *apiConfig) dbVideoToSignedVideo(video database.Video) (database.Video, error) {
+	if video.VideoURL == nil {
+		return video, nil
+	}
+	encodedVideoURLParts := strings.SplitN(*video.VideoURL, ",", 2)
+	if len(encodedVideoURLParts) != 2 {
+		return video, fmt.Errorf("invalid encoding for video url")
+	}
+	s3Bucket := encodedVideoURLParts[0]
+	s3ObjectKey := encodedVideoURLParts[1]
+	signedVideoURL, err := filestorage.GeneratePresignedURL(cfg.s3Client, s3Bucket, s3ObjectKey, 15*time.Minute)
+	if err != nil {
+		return video, err
+	}
+	video.VideoURL = &signedVideoURL
+	return video, nil
 }
