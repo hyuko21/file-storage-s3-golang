@@ -77,10 +77,6 @@ func (cfg *apiConfig) uploadVideo(r *http.Request) (videoURL string, err error) 
 	if err != nil {
 		return
 	}
-	randomFileKey, err := utils.MakeRandomString()
-	if err != nil {
-		return
-	}
 	tempVideoPattern := fmt.Sprintf("%s.%s", "tubely-golang-video", fileExt)
 	tempVideoFile, err := os.CreateTemp("", tempVideoPattern)
 	if err != nil {
@@ -113,7 +109,10 @@ func (cfg *apiConfig) uploadVideo(r *http.Request) (videoURL string, err error) 
 	defer os.Remove(processedTempVideoFile.Name())
 	defer processedTempVideoFile.Close()
 
-	fileKey := fmt.Sprintf("%s.%s", randomFileKey, fileExt)
+	fileKey, err := makeFileKey(fileExt)
+	if err != nil {
+		return
+	}
 	switch aspectRatio {
 	case "16:9":
 		fileKey = "landscape/" + fileKey
@@ -130,6 +129,15 @@ func (cfg *apiConfig) uploadVideo(r *http.Request) (videoURL string, err error) 
 	})
 
 	videoURL = fmt.Sprintf("%s/%s", cfg.s3CfDistribution, fileKey)
+	return
+}
+
+func makeFileKey(fileExt string) (fileKey string, err error) {
+	randomKey, err := utils.MakeRandomString()
+	if err != nil {
+		return
+	}
+	fileKey = fmt.Sprintf("%s.%s", randomKey, fileExt)
 	return
 }
 
